@@ -1802,9 +1802,9 @@ $role = $_SESSION["role"] ?? "Admin";
             document.getElementById('vs_vendor_id').value = vendor.vendor_id || '';
             document.getElementById('vs_name').value = vendor.name || '';
             allStalls = await loadStalls(true);
-            console.log("stallshere", allStalls)
-
             const vendorStalls = allStalls.filter(stall => stall.vendor_id === vendor.vendor_id)
+            allStalls = allStalls.filter(stall => stall.status === "Available")
+
             console.log("herehere", vendorStalls)
 
             document.querySelectorAll(".stall-no").forEach(select => {
