@@ -485,7 +485,7 @@ $role = $_SESSION["role"] ?? "Admin";
             <input hidden id="hidden_stall_no" />
             <div class="mb-2">
                 <label>Owner Name</label>
-                <input type="text" id="v_name" class="form-control" placeholder="Full name" readonly>
+                <input type="text" id="v_name" class="form-control" placeholder="Full name" required>
             </div>
             <div class="mb-2">
                 <label>Contact Number</label>
@@ -494,23 +494,6 @@ $role = $_SESSION["role"] ?? "Admin";
             <div class="mb-2">
                 <label>Email Address</label>
                 <input type="email" id="v_email" class="form-control" placeholder="email@example.com" required>
-            </div>
-            <div class="mb-2">
-                <label>Assigned Stall</label>
-                <select id="v_stall_no" class="form-select" required>
-                    <option value="">Loading stalls...</option>
-                </select>
-            </div>
-            <div class="mb-2">
-                <label>Stall Type</label>
-                <select id="v_stall_type" class="form-select">
-                    <option>Food</option>
-                    <option>Merchandise</option>
-                    <option>Vegetables</option>
-                    <option>Fruits</option>
-                    <option>Clothing</option>
-                    <option>Condiments</option>
-                </select>
             </div>
             <div class="mb-2">
                 <label>Status</label>
@@ -797,9 +780,7 @@ $role = $_SESSION["role"] ?? "Admin";
                 document.getElementById('v_name').value = vendor.name || '';
                 document.getElementById('v_contact_no').value = vendor.contact_no || '';
                 document.getElementById('v_email').value = vendor.email || '';
-                document.getElementById('v_stall_type').value = vendor.stall_type || '';
                 document.getElementById('v_status').value = vendor.status || '';
-                loadAvailableStalls(vendor.stall_no);
             } else {
                 document.getElementById("vendorModal").querySelector('h4').innerText = "Register New Vendor";
                 document.getElementById("saveVendorBtn").innerHTML = `
@@ -807,7 +788,6 @@ $role = $_SESSION["role"] ?? "Admin";
                     Save
                 `;
                 clearVendorForm();
-                loadAvailableStalls();
             }
         }
 
@@ -1501,12 +1481,9 @@ $role = $_SESSION["role"] ?? "Admin";
             const name = document.getElementById('v_name').value.trim();
             const contact_no = document.getElementById('v_contact_no').value.trim();
             const email = document.getElementById('v_email').value.trim();
-            const stall_no = document.getElementById('v_stall_no').value.trim();
-            const stall_id = document.getElementById('v_stall_no').selectedOptions[0]?.dataset.stallId;
             const status = document.getElementById('v_status').value;
-            const stall_type = document.getElementById('v_stall_type').value.trim();
 
-            if (!name || !contact_no || !email || !stall_no || !status || !stall_type) {
+            if (!name || !contact_no || !email || !status) {
                 showFeedback('Please fill in all required fields.', 'warning');
                 return;
             }
@@ -1520,7 +1497,7 @@ $role = $_SESSION["role"] ?? "Admin";
                 const res = await fetch(`${API_BASE}/vendor`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, contact_no, email, stall_no, status, stall_type, stall_id })
+                    body: JSON.stringify({ name, contact_no, email, status })
                 });
 
                 const data = await res.json();
@@ -1623,7 +1600,6 @@ $role = $_SESSION["role"] ?? "Admin";
             ['v_name', 'v_contact_no', 'v_email'].forEach(id => {
                 document.getElementById(id).value = '';
             });
-            document.getElementById('v_stall_type').selectedIndex = 0;
             document.getElementById('v_status').selectedIndex = 0;
         }
 
@@ -1730,17 +1706,21 @@ $role = $_SESSION["role"] ?? "Admin";
         function addStall() {
             const container = document.getElementById("stallContainer");
 
-            const firstGroup = container.querySelector(".stall-group");
-            const clone = firstGroup.cloneNode(true);
+            const template = container.querySelector(".stall-group");
+            if (!template) {
+                console.error("No stall-group template found");
+                return;
+            }
 
-            const stallSelect = clone.querySelector(".stall-select");
+            const clone = template.cloneNode(true);
+
+            const stallSelect = clone.querySelector(".stall-no");
             const typeSelect = clone.querySelector(".stall-type");
 
-            // reset safely
             if (stallSelect) {
                 stallSelect.value = "";
-                stallSelect.onchange = (e) => handleChange(e.target);
-                renderOptions(stallSelect);
+                stallSelect.onchange = handleChange;
+                populateStallDropdown(stallSelect);
             }
 
             if (typeSelect) {
@@ -1798,18 +1778,50 @@ $role = $_SESSION["role"] ?? "Admin";
             });
         }
 
+        let oldStallIds = [];
         async function loadStallsManagement(vendor = null) {
             document.getElementById('vs_vendor_id').value = vendor.vendor_id || '';
             document.getElementById('vs_name').value = vendor.name || '';
+
             allStalls = await loadStalls(true);
-            const vendorStalls = allStalls.filter(stall => stall.vendor_id === vendor.vendor_id)
-            allStalls = allStalls.filter(stall => stall.status === "Available")
 
-            console.log("herehere", vendorStalls)
+            const container = document.getElementById("stallContainer");
+            const template = container.querySelector(".stall-group");
 
-            document.querySelectorAll(".stall-no").forEach(select => {
-                populateStallDropdown(select);
-            });
+            container.innerHTML = "";
+            container.appendChild(template);
+
+            selectedStalls = new Set();
+
+            const vendorStalls = allStalls.filter(
+                s => s.vendor_id === vendor.vendor_id
+            );
+
+            oldStallIds = vendorStalls.map(stall => { return stall.stall_id })
+
+            if (vendorStalls.length > 0) {
+                vendorStalls.forEach((stall, index) => {
+                    const row = index === 0
+                        ? template
+                        : template.cloneNode(true);
+
+                    const select = row.querySelector(".stall-no");
+                    const type = row.querySelector(".stall-type");
+
+                    populateStallDropdown(select);
+
+                    select.value = stall.stall_id;
+
+                    type.value = stall.stall_type || "Food";
+
+                    selectedStalls.add(Number(stall.stall_id));
+
+                    if (index > 0) container.appendChild(row);
+                });
+            }
+
+            refreshAllDropdowns();
+            updateRemoveButtons();
         }
 
         function populateStallDropdown(select) {
@@ -1869,12 +1881,14 @@ $role = $_SESSION["role"] ?? "Admin";
                         stalls.push({
                             stall_id: Number(select.value),
                             stall_type: typeSelects[index].value
+                            
                         });
                     }
                 });
 
                 const data = {
-                    stalls: stalls
+                    stalls: stalls,
+                    oldStallIds
                 };
 
                 const res = await fetch(`${API_BASE}/vendor/addStall/${vendorId}`, {
@@ -1889,6 +1903,8 @@ $role = $_SESSION["role"] ?? "Admin";
                     showFeedback(data.message || 'Failed to add vendor.', 'danger');
                     return;
                 }
+                
+                oldStallIds = [];
                 toggleStallManagement();
             } catch (error) {
                 console.log("errorhere", error)
