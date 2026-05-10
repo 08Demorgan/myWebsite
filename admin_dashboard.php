@@ -1804,6 +1804,9 @@ $role = $_SESSION["role"] ?? "Admin";
             allStalls = await loadStalls(true);
             console.log("stallshere", allStalls)
 
+            const vendorStalls = allStalls.filter(stall => stall.vendor_id === vendor.vendor_id)
+            console.log("herehere", vendorStalls)
+
             document.querySelectorAll(".stall-no").forEach(select => {
                 populateStallDropdown(select);
             });
